@@ -35,6 +35,31 @@
           <h2>$current.dateTime</h2>
       </div>
 
+## moved navbar controls here 
+      <div id="navbar">
+        <input type="button" value="   Current   " onclick="openURL('index.html')" />
+        <input type="button" value="    Week     " onclick="openURL('week.html')" />
+        <input type="button" value="    Month    " onclick="openURL('month.html')" />
+        <input type="button" value="    Year     " onclick="openURL('year.html')" />
+        <p>Monthly summary:&nbsp;
+        <select NAME=noaaselect onchange="openNoaaFile(value)">
+        #for $monthYear in $SummaryByMonth
+            <option value="$monthYear">$monthYear</option>
+        #end for
+	    <option selected>-Select month-</option>
+        </select>
+        <br/>
+        Yearly summary:&nbsp;
+        <select NAME=noaaselect onchange="openNoaaFile(value)">
+        #for $yr in $SummaryByYear
+            <option value="$yr">$yr</option>
+        #end for
+	    <option selected>-Select year-</option>
+        </select>
+        </p>
+      </div>
+
+
       <div id="stats_group">
 
         <div class="stats">
@@ -293,41 +318,33 @@
 
       </div> <!--End class "stats_group" -->
 
+
+
       <div id="content">
-        <div id="about">
-          <div class="header">
-            About this weather station:
-          </div>
-          <table>
-            <caption class="caption">Location</caption>
-            <tr>
-              <td class="label">Latitude:</td>
-              <td class="data">$station.latitude[0]&deg; $station.latitude[1]' $station.latitude[2]</td>
-            </tr>
-            <tr>
-              <td class="label">Longitude:</td>
-              <td class="data">$station.longitude[0]&deg; $station.longitude[1]' $station.longitude[2]</td>
-            </tr>
-            <tr>
-              <td class="label">Altitude:</td>
-              <td class="data">$station.altitude</td>
-            </tr>
-          </table>
-          <p>
-            This station uses a $station.hardware, controlled by
-            <a href="http://www.weewx.com">'weewx'</a>, an experimental
-            weather software system written in Python. Weewx
-            was designed to be simple, fast, and easy to understand by
-            leveraging modern software concepts.
-          </p>
-          <p><a href="RSS/weewx_rss.xml">RSS feed</a></p>
-          <p><a href="mobile.html">Mobile formatted</a></p>
-          <p><a href="smartphone/index.html">Smartphone formatted</a></p>
-          <p>Weewx uptime:  $station.uptime<br/>
-             Server uptime: $station.os_uptime<br/>
-             weewx v$station.version</p>
-        </div> <!-- End id "about" -->
-        
+
+        <div id="plots">
+          <img src="daytempdew.png"   alt="temperatures" />
+          <img src="daytempchill.png" alt="heatchill" />
+          <img src="dayrain.png"      alt="rain" />
+          <img src="daywind.png"      alt="wind" />
+          <img src="daybarometer.png" alt="barometer"/>
+          <img src="daywinddir.png"   alt="Hi Wind" />
+          <img src="dayinside.png"    alt="Inside" />
+          <img src="daywindvec.png"   alt="Wind Vector" />
+          #if $day.radiation.has_data
+          <img src="dayradiation.png" alt="Radiation" />
+          #end if
+          #if $day.UV.has_data
+          <img src="dayuv.png" alt="UV Index" />
+          #end if
+          #if $day.rxCheckPercent.has_data
+          <img src="dayrx.png"        alt="day rx percent"/>
+          #end if
+          #if $day.extraTemp1.has_data
+          <img src="daypond.png"      alt="Pond Temperatures" />
+          #end if
+        </div> <!-- End id "plots" -->
+
         <div id="almanac">
           <div class="header">
             Today's Almanac
@@ -478,53 +495,47 @@
             #end if
           </div> <!-- end class "celestial_group" -->
         </div> <!-- end id "almanac" -->
-        
-        <div id="plots">
-          <img src="daytempdew.png"   alt="temperatures" />
-          <img src="daytempchill.png" alt="heatchill" />
-          <img src="dayrain.png"      alt="rain" />
-          <img src="daywind.png"      alt="wind" />
-          <img src="daybarometer.png" alt="barometer"/>
-          <img src="daywinddir.png"   alt="Hi Wind" />
-          <img src="dayinside.png"    alt="Inside" />
-          <img src="daywindvec.png"   alt="Wind Vector" />
-          #if $day.radiation.has_data
-          <img src="dayradiation.png" alt="Radiation" />
-          #end if
-          #if $day.UV.has_data
-          <img src="dayuv.png" alt="UV Index" />
-          #end if
-          #if $day.rxCheckPercent.has_data
-          <img src="dayrx.png"        alt="day rx percent"/>
-          #end if
-          #if $day.extraTemp1.has_data
-          <img src="daypond.png"      alt="Pond Temperatures" />
-          #end if
-        </div> <!-- End id "plots" -->
+ 
+        <div id="about">
+          <div class="header">
+            About this weather station
+          </div>
+          <table>
+            <caption class="caption">Location</caption>
+            <tr>
+              <td class="label">Latitude:</td>
+              <td class="data">$station.latitude[0]&deg; $station.latitude[1]' $station.latitude[2]</td>
+            </tr>
+            <tr>
+              <td class="label">Longitude:</td>
+              <td class="data">$station.longitude[0]&deg; $station.longitude[1]' $station.longitude[2]</td>
+            </tr>
+            <tr>
+              <td class="label">Altitude:</td>
+              <td class="data">$station.altitude</td>
+            </tr>
+          </table>
+          <p>
+            This station uses a $station.hardware, controlled by
+            <a href="http://www.weewx.com">'weewx'</a>, an experimental
+            weather software system written in Python. Weewx
+            was designed to be simple, fast, and easy to understand by
+            leveraging modern software concepts.
+          </p>
+          <p><a href="RSS/weewx_rss.xml">RSS feed</a></p>
+          <p><a href="mobile.html">Mobile formatted</a></p>
+          <p><a href="smartphone/index.html">Smartphone formatted</a></p>
+          <p>Weewx uptime:  $station.uptime<br/>
+             Server uptime: $station.os_uptime<br/>
+             weewx v$station.version</p>
+        </div> <!-- End id "about" -->
+
       </div> <!-- End id "content" -->
 
-      <div id="navbar">
-        <input type="button" value="   Current   " onclick="openURL('index.html')" />
-        <input type="button" value="    Week     " onclick="openURL('week.html')" />
-        <input type="button" value="    Month    " onclick="openURL('month.html')" />
-        <input type="button" value="    Year     " onclick="openURL('year.html')" />
-        <p>Monthly summary:&nbsp;
-        <select NAME=noaaselect onchange="openNoaaFile(value)">
-        #for $monthYear in $SummaryByMonth
-            <option value="$monthYear">$monthYear</option>
-        #end for
-	    <option selected>-Select month-</option>
-        </select>
-        <br/>
-        Yearly summary:&nbsp;
-        <select NAME=noaaselect onchange="openNoaaFile(value)">
-        #for $yr in $SummaryByYear
-            <option value="$yr">$yr</option>
-        #end for
-	    <option selected>-Select year-</option>
-        </select>
-        </p>
-      </div>
+
+## div navbar was here
+
+
     </div>
 
     ## Include the Google Analytics code if the user has supplied an ID:

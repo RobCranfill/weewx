@@ -3,7 +3,7 @@
 #
 #    See the file LICENSE.txt for your full rights.
 #
-"""For uploading files to a remove server via FTP"""
+"""For uploading files to a remote server via FTP"""
 
 from __future__ import with_statement
 import os
@@ -12,6 +12,11 @@ import ftplib
 import cPickle
 import time
 import syslog
+
+# cran: added
+# http://pysftp.readthedocs.org/en/release_0.2.8/index.html
+import pysftp
+
 
 class FtpUpload(object):
     """Uploads a directory and all its descendants to a remote server.
@@ -63,53 +68,79 @@ class FtpUpload(object):
         self.secure      = secure
         self.debug       = debug
 
+# cran - use actual sftp - not ftps
+        self.useSFTP = True
+
+
     def run(self):
         """Perform the actual upload.
         
         returns: the number of files uploaded."""
         
-        if self.secure:
-            try:
-                FTPClass = ftplib.FTP_TLS
-            except AttributeError:
-                FTPClass = ftplib.FTP
-                syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Your version of Python does not support SFTP. Using unsecure connection.")
-                self.secure = False
+        
+        if self.useSFTP:
+            # no equivalent operation for sftp
+            pass
         else:
-            FTPClass = ftplib.FTP
+            if self.secure:
+                try:
+                    FTPClass = ftplib.FTP_TLS
+                except AttributeError:
+                    FTPClass = ftplib.FTP
+                    syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Your version of Python does not support FTPS. Using unsecure connection.")
+                    self.secure = False
+            else:
+                FTPClass = ftplib.FTP
         
         # Get the timestamp and members of the last upload:
         (timestamp, fileset) = self.getLastUpload()
 
         n_uploaded = 0
+
         # Try to connect to the ftp server up to max_tries times:
-        
         try:
-            if self.secure:
-                syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Attempting secure connection to %s" % self.server)
+            if self.useSFTP:
+                syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Attempting SFTP connection to %s" % self.server)
+                try:
+                    sftp = pysftp.Connection(self.server, username=self.user, password=self.password)
+                except Exception as e:
+                    syslog.syslog(syslog.LOG_DEBUG, "ftpupload: SFTP error: %s" % e)
             else:
-                syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Attempting connection to %s" % self.server)
+                if self.secure:
+                    syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Attempting FTPS connection to %s" % self.server)
+                else:
+                    syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Attempting FTP connection to %s" % self.server)
+            
             for count in range(self.max_tries):
                 try:
-                    ftp_server = FTPClass()
-                    ftp_server.connect(self.server, self.port)
-        
-                    if self.debug:
-                        ftp_server.set_debuglevel(self.debug)
-        
-                    ftp_server.login(self.user, self.password)
-                    ftp_server.set_pasv(self.passive)
-                    if self.secure:
-                        ftp_server.prot_p()
-                        syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Secure connection to %s" % self.server)
+                    if self.useSFTP:
+                        try:
+                            sftp = pysftp.Connection(self.server, username=self.user, password=self.password)
+                            # syslog.syslog(syslog.LOG_DEBUG, "ftpupload: SFTP connection to %s OK" % self.server)
+                            break
+                        except Exception as e:
+                            syslog.syslog(syslog.LOG_DEBUG, "ftpupload: SFTP error: " % e)
                     else:
-                        syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Connected to %s" % self.server)
-                    break
-                except ftplib.all_errors, e:
-                    syslog.syslog(syslog.LOG_NOTICE, "ftpupload: Unable to connect or log into server : %s" % e)
+                        ftp_server = FTPClass()
+                        ftp_server.connect(self.server, self.port)
+            
+                        if self.debug:
+                            ftp_server.set_debuglevel(self.debug)
+            
+                        ftp_server.login(self.user, self.password)
+                        ftp_server.set_pasv(self.passive)
+                        if self.secure:
+                            ftp_server.prot_p()
+                            syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Secure connection to %s" % self.server)
+                        else:
+                            syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Connected to %s" % self.server)
+                        break
+                except ftplib.all_errors as e:
+                    syslog.syslog(syslog.LOG_NOTICE, "ftpupload: Unable to connect or log into server %s" % e)
+            
             else:
                 # This is executed only if the loop terminates naturally (without a break statement),
-                # meaning the ftp connection failed max_tries times. Abandon ftp upload
+                # meaning the ftp connection failed max_tries times. Abandon ftp upload.
                 syslog.syslog(syslog.LOG_CRIT, 
                                   "ftpupload: Attempted %d times to connect to server %s. Giving up." % 
                                   (self.max_tries, self.server))
@@ -127,7 +158,12 @@ class FtpUpload(object):
                 remote_dir_path = os.path.normpath(os.path.join(self.remote_root, local_rel_dir_path))
     
                 # Make the remote directory if necessary:
-                self._make_remote_dir(ftp_server, remote_dir_path)
+                if self.useSFTP:
+                    # FIXME this doesn't create the remote dir if it doesn't exsit
+                    # syslog.syslog(syslog.LOG_DEBUG, "ftpupload: change remote dir to %s" % remote_dir_path)
+                    sftp.chdir(remote_dir_path)
+                else:
+                    self._make_remote_dir(ftp_server, remote_dir_path)
                     
                 # Now iterate over all members of the local directory:
                 for filename in filenames:
@@ -142,15 +178,24 @@ class FtpUpload(object):
                     # Retry up to max_tries times:
                     for count in range(self.max_tries):
                         try:
-                            # If we have to retry, we should probably reopen the file as well.
-                            # Hence, the open is in the inner loop:
-                            fd = open(full_local_path, "r")
-                            ftp_server.storbinary(STOR_cmd, fd)
+                            if self.useSFTP:
+                                # syslog.syslog(syslog.LOG_DEBUG, "ftpupload: sftp: send %s as %s" % (full_local_path, filename))
+                                sftp.put(full_local_path, remotepath=filename)
+                            else:
+                                # If we have to retry, we should probably reopen the file as well.
+                                # Hence, the open is in the inner loop:
+                                fd = open(full_local_path, "r")
+                                ftp_server.storbinary(STOR_cmd, fd)
+
                         except ftplib.all_errors, e:
                             # Unsuccessful. Log it and go around again.
                             syslog.syslog(syslog.LOG_ERR, "ftpupload: Attempt #%d. Failed uploading %s to %s. Reason: %s" %
                                                           (count+1, full_remote_path, self.server, e))
-                            ftp_server.set_pasv(self.passive)
+                            
+                            if self.useSFTP:
+                                pass # nothing equivalent needed for sftp?
+                            else:
+                                ftp_server.set_pasv(self.passive)
                         else:
                             # Success. Log it, break out of the loop
                             n_uploaded += 1
@@ -158,18 +203,26 @@ class FtpUpload(object):
                             syslog.syslog(syslog.LOG_DEBUG, "ftpupload: Uploaded file %s" % full_remote_path)
                             break
                         finally:
-                            # This is always executed on every loop. Close the file.
-                            try:
-                                fd.close()
-                            except:
+                            
+                            # sftp doesn't read the file this way so we don't need to close anything.
+                            if self.useSFTP:
                                 pass
+                            else:
+                                # This is always executed on every loop. Close the file.
+                                try:
+                                    fd.close()
+                                except:
+                                    pass
                     else:
                         # This is executed only if the loop terminates naturally (without a break statement),
                         # meaning the upload failed max_tries times. Log it, move on to the next file.
                         syslog.syslog(syslog.LOG_ERR, "ftpupload: Failed to upload file %s" % full_remote_path)
         finally:
             try:
-                ftp_server.quit()
+                if self.useSFTP:
+                    sftp.close()
+                else:
+                    ftp_server.quit()
             except:
                 pass
         
